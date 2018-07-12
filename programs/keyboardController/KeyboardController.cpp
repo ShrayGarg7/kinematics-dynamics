@@ -98,6 +98,8 @@ bool roboticslab::KeyboardController::configure(yarp::os::ResourceFinder &rf)
     bool skipControlboardController = rf.check("skipRCB", "don't load remote control board client");
     bool skipCartesianController = rf.check("skipCC", "don't load cartesian control client");
 
+    skipControlboardController = true; // DISABLED (teo-bimanipulation)
+
     if (skipControlboardController && skipCartesianController)
     {
         CD_ERROR("You cannot skip both controllers.\n");
@@ -170,41 +172,71 @@ bool roboticslab::KeyboardController::configure(yarp::os::ResourceFinder &rf)
 
     if (!skipCartesianController)
     {
-        std::string localCartesian = rf.check("localCartesian", yarp::os::Value(DEFAULT_CARTESIAN_LOCAL),
-                "local cartesian port").asString();
-        std::string remoteCartesian = rf.check("remoteCartesian", yarp::os::Value(DEFAULT_CARTESIAN_REMOTE),
-                "remote cartesian port").asString();
+        // teo-bimanipulation: left arm
 
-        yarp::os::Property cartesianControlClientOptions;
-        cartesianControlClientOptions.put("device", "CartesianControlClient");
-        cartesianControlClientOptions.put("cartesianLocal", localCartesian);
-        cartesianControlClientOptions.put("cartesianRemote", remoteCartesian);
+        std::string localCartesianLeftArm = rf.check("localCartesianLeftArm", yarp::os::Value(DEFAULT_CARTESIAN_LOCAL),
+                "local cartesian port (left arm)").asString();
+        std::string remoteCartesianLeftArm = rf.check("remoteCartesianLeftArm", yarp::os::Value(DEFAULT_CARTESIAN_REMOTE),
+                "remote cartesian port (left arm)").asString();
 
-        cartesianControlDevice.open(cartesianControlClientOptions);
+        yarp::os::Property cartesianControlClientOptionsLeftArm;
+        cartesianControlClientOptionsLeftArm.put("device", "CartesianControlClient");
+        cartesianControlClientOptionsLeftArm.put("cartesianLocal", localCartesianLeftArm + "/leftArm");
+        cartesianControlClientOptionsLeftArm.put("cartesianRemote", remoteCartesianLeftArm);
 
-        if (!cartesianControlDevice.isValid())
+        cartesianControlDeviceLeftArm.open(cartesianControlClientOptionsLeftArm);
+
+        if (!cartesianControlDeviceLeftArm.isValid())
         {
-            CD_ERROR("cartesian control client device not valid.\n");
+            CD_ERROR("cartesian control client device not valid (left arm).\n");
+            close();
             return false;
         }
 
-        if (!cartesianControlDevice.view(iCartesianControl))
+        if (!cartesianControlDeviceLeftArm.view(iCartesianControlLeftArm))
         {
-            CD_ERROR("Could not view iCartesianControl.\n");
+            CD_ERROR("Could not view iCartesianControl (left arm).\n");
+            close();
+            return false;
+        }
+
+        // teo-bimanipulation: right arm
+
+        std::string localCartesianRightArm = rf.check("localCartesianRightArm", yarp::os::Value(DEFAULT_CARTESIAN_LOCAL),
+                "local cartesian port (right arm)").asString();
+        std::string remoteCartesianRightArm = rf.check("remoteCartesianRightArm", yarp::os::Value(DEFAULT_CARTESIAN_REMOTE),
+                "remote cartesian port (right arm)").asString();
+
+        yarp::os::Property cartesianControlClientOptionsRightArm;
+        cartesianControlClientOptionsRightArm.put("device", "CartesianControlClient");
+        cartesianControlClientOptionsRightArm.put("cartesianLocal", localCartesianRightArm + "/rightArm");
+        cartesianControlClientOptionsRightArm.put("cartesianRemote", remoteCartesianRightArm);
+
+        cartesianControlDeviceRightArm.open(cartesianControlClientOptionsRightArm);
+
+        if (!cartesianControlDeviceRightArm.isValid())
+        {
+            CD_ERROR("cartesian control client device not valid (right arm).\n");
+            return false;
+        }
+
+        if (!cartesianControlDeviceRightArm.view(iCartesianControlRightArm))
+        {
+            CD_ERROR("Could not view iCartesianControl (right arm).\n");
             return false;
         }
 
         double frameDouble;
 
-        if (!iCartesianControl->getParameter(VOCAB_CC_CONFIG_FRAME, &frameDouble))
+        if (!iCartesianControlLeftArm->getParameter(VOCAB_CC_CONFIG_FRAME, &frameDouble))
         {
-            CD_ERROR("Could not retrieve current frame.\n");
+            CD_ERROR("Could not retrieve current frame (left arm).\n");
             return false;
         }
 
         if (frameDouble != ICartesianSolver::BASE_FRAME && frameDouble != ICartesianSolver::TCP_FRAME)
         {
-            CD_ERROR("Unrecognized or unsupported frame.\n");
+            CD_ERROR("Unrecognized or unsupported frame (left arm).\n");
             return false;
         }
 
@@ -226,18 +258,23 @@ bool roboticslab::KeyboardController::configure(yarp::os::ResourceFinder &rf)
 
         if (usingThread)
         {
-            linTrajThread = new LinearTrajectoryThread(threadMs, iCartesianControl);
+            linTrajThreadLeftArm = new LinearTrajectoryThread(threadMs, iCartesianControlLeftArm);
+            linTrajThreadRightArm = new LinearTrajectoryThread(threadMs, iCartesianControlRightArm);
 
-            if (!linTrajThread->checkStreamingConfig())
+            if (!linTrajThreadLeftArm->checkStreamingConfig() || !linTrajThreadRightArm->checkStreamingConfig())
             {
                 CD_ERROR("Unable to check streaming configuration.\n");
                 return false;
             }
 
-            linTrajThread->useTcpFrame(cartFrame == ICartesianSolver::TCP_FRAME);
-            linTrajThread->suspend(); // start in suspended state
+            linTrajThreadLeftArm->useTcpFrame(cartFrame == ICartesianSolver::TCP_FRAME);
+            linTrajThreadRightArm->useTcpFrame(cartFrame == ICartesianSolver::TCP_FRAME);
 
-            if (!linTrajThread->start())
+            // start in suspended state
+            linTrajThreadLeftArm->suspend();
+            linTrajThreadRightArm->suspend();
+
+            if (!linTrajThreadLeftArm->start() || !linTrajThreadRightArm->start())
             {
                 CD_ERROR("Unable to start MOVI thread.\n");
                 return false;
@@ -405,15 +442,20 @@ double roboticslab::KeyboardController::getPeriod()
 
 bool roboticslab::KeyboardController::close()
 {
-    if (cartesianControlDevice.isValid() && usingThread)
+    if (cartesianControlDeviceLeftArm.isValid() && cartesianControlDeviceRightArm.isValid() && usingThread)
     {
-        linTrajThread->stop();
-        delete linTrajThread;
-        linTrajThread = 0;
+        linTrajThreadLeftArm->stop();
+        linTrajThreadRightArm->stop();
+
+        delete linTrajThreadLeftArm;
+        delete linTrajThreadRightArm;
+
+        linTrajThreadLeftArm = linTrajThreadRightArm = 0;
     }
 
     controlboardDevice.close();
-    cartesianControlDevice.close();
+    cartesianControlDeviceLeftArm.close();
+    cartesianControlDeviceRightArm.close();
 
     return true;
 }
@@ -473,7 +515,7 @@ void roboticslab::KeyboardController::incrementOrDecrementJointVelocity(joint q,
 template <typename func>
 void roboticslab::KeyboardController::incrementOrDecrementCartesianVelocity(cart coord, func op)
 {
-    if (!cartesianControlDevice.isValid())
+    if (!cartesianControlDeviceLeftArm.isValid() || !cartesianControlDeviceRightArm.isValid())
     {
         CD_WARNING("Unrecognized command (you chose not to launch cartesian controller client).\n");
         issueStop();
@@ -498,28 +540,39 @@ void roboticslab::KeyboardController::incrementOrDecrementCartesianVelocity(cart
 
         if (usingThread)
         {
-            linTrajThread->suspend();
+            linTrajThreadLeftArm->suspend();
+            linTrajThreadRightArm->suspend();
         }
         else
         {
-            iCartesianControl->twist(currentCartVels); // disable CMC
+            // disable CMC
+            iCartesianControlLeftArm->twist(currentCartVels);
+            iCartesianControlRightArm->twist(currentCartVels);
         }
     }
     else
     {
         if (usingThread)
         {
-            if (!linTrajThread->configure(currentCartVels))
+            if (!linTrajThreadLeftArm->configure(currentCartVels))
             {
-                CD_ERROR("Unable to configure cartesian command.\n");
+                CD_ERROR("Unable to configure cartesian command (left arm).\n");
                 return;
             }
 
-            linTrajThread->resume();
+            if (!linTrajThreadRightArm->configure(currentCartVels))
+            {
+                CD_ERROR("Unable to configure cartesian command (right arm).\n");
+                return;
+            }
+
+            linTrajThreadLeftArm->resume();
+            linTrajThreadRightArm->resume();
         }
         else
         {
-            iCartesianControl->movv(currentCartVels);
+            iCartesianControlLeftArm->movv(currentCartVels);
+            iCartesianControlRightArm->movv(currentCartVels);
         }
     }
 
@@ -528,7 +581,7 @@ void roboticslab::KeyboardController::incrementOrDecrementCartesianVelocity(cart
 
 void roboticslab::KeyboardController::toggleReferenceFrame()
 {
-    if (!cartesianControlDevice.isValid())
+    if (!cartesianControlDeviceLeftArm.isValid() || !cartesianControlDeviceRightArm.isValid())
     {
         CD_WARNING("Unrecognized command (you chose not to launch cartesian controller client).\n");
         issueStop();
@@ -557,9 +610,15 @@ void roboticslab::KeyboardController::toggleReferenceFrame()
 
     if (str != "unknown")
     {
-        if (!iCartesianControl->setParameter(VOCAB_CC_CONFIG_FRAME, newFrame))
+        if (!iCartesianControlLeftArm->setParameter(VOCAB_CC_CONFIG_FRAME, newFrame))
         {
-            CD_ERROR("Unable to set reference frame: %s.\n", str.c_str());
+            CD_ERROR("Unable to set reference frame: %s (left arm).\n", str.c_str());
+            return;
+        }
+
+        if (!iCartesianControlRightArm->setParameter(VOCAB_CC_CONFIG_FRAME, newFrame))
+        {
+            CD_ERROR("Unable to set reference frame: %s (right arm).\n", str.c_str());
             return;
         }
 
@@ -568,7 +627,8 @@ void roboticslab::KeyboardController::toggleReferenceFrame()
 
     if (usingThread)
     {
-        linTrajThread->useTcpFrame(newFrame == ICartesianSolver::TCP_FRAME);
+        linTrajThreadLeftArm->useTcpFrame(newFrame == ICartesianSolver::TCP_FRAME);
+        linTrajThreadRightArm->useTcpFrame(newFrame == ICartesianSolver::TCP_FRAME);
     }
 
     std::cout << "Toggled reference frame for cartesian commands: " << str << std::endl;
@@ -592,7 +652,7 @@ void roboticslab::KeyboardController::printJointPositions()
 
 void roboticslab::KeyboardController::printCartesianPositions()
 {
-    if (!cartesianControlDevice.isValid())
+    if (!cartesianControlDeviceLeftArm.isValid() || !cartesianControlDeviceRightArm.isValid())
     {
         CD_WARNING("Unrecognized command (you chose not to launch cartesian controller client).\n");
         issueStop();
@@ -602,23 +662,31 @@ void roboticslab::KeyboardController::printCartesianPositions()
     int state;
     std::vector<double> x;
 
-    iCartesianControl->stat(state, x);
+    iCartesianControlLeftArm->stat(state, x);
     KinRepresentation::decodePose(x, x, KinRepresentation::CARTESIAN, orient, KinRepresentation::DEGREES);
 
-    std::cout << "Current cartesian positions [meters, degrees (" << angleRepr << ")]: " << std::endl;
+    std::cout << "Current cartesian positions (left arm) [meters, degrees (" << angleRepr << ")]: " << std::endl;
+    std::cout << roundZeroes(x) << std::endl;
+
+    iCartesianControlRightArm->stat(state, x);
+    KinRepresentation::decodePose(x, x, KinRepresentation::CARTESIAN, orient, KinRepresentation::DEGREES);
+
+    std::cout << "Current cartesian positions (right arm) [meters, degrees (" << angleRepr << ")]: " << std::endl;
     std::cout << roundZeroes(x) << std::endl;
 }
 
 void roboticslab::KeyboardController::issueStop()
 {
-    if (cartesianControlDevice.isValid())
+    if (cartesianControlDeviceLeftArm.isValid() && cartesianControlDeviceRightArm.isValid())
     {
         if (usingThread)
         {
-            linTrajThread->suspend();
+            linTrajThreadLeftArm->suspend();
+            linTrajThreadRightArm->suspend();
         }
 
-        iCartesianControl->stopControl();
+        iCartesianControlLeftArm->stopControl();
+        iCartesianControlRightArm->stopControl();
     }
     else if (controlboardDevice.isValid())
     {
@@ -630,7 +698,7 @@ void roboticslab::KeyboardController::issueStop()
         std::fill(currentJointVels.begin(), currentJointVels.end(), 0.0);
     }
 
-    if (cartesianControlDevice.isValid())
+    if (cartesianControlDeviceLeftArm.isValid() && cartesianControlDeviceRightArm.isValid())
     {
         std::fill(currentCartVels.begin(), currentCartVels.end(), 0.0);
     }
@@ -653,7 +721,7 @@ void roboticslab::KeyboardController::printHelp()
         std::cout << " 'j' - query current joint positions" << std::endl;
     }
 
-    if (cartesianControlDevice.isValid())
+    if (cartesianControlDeviceLeftArm.isValid() && cartesianControlDeviceRightArm.isValid())
     {
         std::cout << " 'p' - query current cartesian positions (angleRepr: " << angleRepr << ")" << std::endl;
     }
@@ -684,7 +752,7 @@ void roboticslab::KeyboardController::printHelp()
         std::cout << " - issue joint movements (+/-)" << std::endl;
     }
 
-    if (cartesianControlDevice.isValid())
+    if (cartesianControlDeviceLeftArm.isValid() && cartesianControlDeviceRightArm.isValid())
     {
         std::cout << " 'a'/'z' - move along x axis (+/-)" << std::endl;
         std::cout << " 's'/'x' - move along y axis (+/-)" << std::endl;

@@ -85,17 +85,20 @@ private:
     control_modes controlMode;
 
     bool usingThread;
-    LinearTrajectoryThread * linTrajThread;
+    LinearTrajectoryThread * linTrajThreadLeftArm;
+    LinearTrajectoryThread * linTrajThreadRightArm;
 
     yarp::dev::PolyDriver controlboardDevice;
-    yarp::dev::PolyDriver cartesianControlDevice;
+    yarp::dev::PolyDriver cartesianControlDeviceLeftArm;
+    yarp::dev::PolyDriver cartesianControlDeviceRightArm;
 
     yarp::dev::IEncoders * iEncoders;
     yarp::dev::IControlMode2 * iControlMode;
     yarp::dev::IControlLimits2 * iControlLimits;
     yarp::dev::IVelocityControl * iVelocityControl;
 
-    roboticslab::ICartesianControl * iCartesianControl;
+    roboticslab::ICartesianControl * iCartesianControlLeftArm;
+    roboticslab::ICartesianControl * iCartesianControlRightArm;
 
     std::vector<double> maxVelocityLimits;
     std::vector<double> currentJointVels;
