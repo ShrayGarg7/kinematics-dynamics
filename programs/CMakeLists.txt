@@ -1,5 +1,6 @@
 # programs
 
+add_subdirectory(gravityCompensation)
 add_subdirectory(keyboardController)
 add_subdirectory(streamingDeviceController)
 add_subdirectory(transCoords)
