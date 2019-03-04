@@ -14,7 +14,8 @@ namespace roboticslab
 GravityCompensation::GravityCompensation()
     : iAnalogSensor(NULL),
       iCartesianControl(NULL),
-      gain(DEFAULT_GAIN)
+      linearGain(DEFAULT_LINEAR_GAIN),
+      angularGain(DEFAULT_ANGULAR_GAIN)
 {}
 
 /************************************************************************/
@@ -35,7 +36,8 @@ bool GravityCompensation::configure(yarp::os::ResourceFinder &rf)
     std::string cartesianRemote = rf.check("remoteCartesian", yarp::os::Value(DEFAULT_REMOTE_CARTESIAN),
             "remote cartesian port").asString();
 
-    gain = rf.check("gain", yarp::os::Value(DEFAULT_GAIN), "gain").asDouble();
+    linearGain = rf.check("linearGain", yarp::os::Value(DEFAULT_LINEAR_GAIN), "linear gain").asDouble();
+    angularGain = rf.check("angularGain", yarp::os::Value(DEFAULT_ANGULAR_GAIN), "angular gain").asDouble();
 
     yarp::os::Property sensorOptions;
     sensorOptions.put("device", "analogsensorclient");
@@ -138,9 +140,10 @@ bool GravityCompensation::interruptModule()
 
 void GravityCompensation::transformData(const yarp::sig::Vector & v, std::vector<double> & x)
 {
-    for (int i = 0; i < x.size(); i++)
+    for (int i = 0; i < 3; i++)
     {
-        x[i] = v[i] * gain;
+        x[i] = v[i] * linearGain;
+        x[i + 3] = v[i + 3] * angularGain;
     }
 }
 

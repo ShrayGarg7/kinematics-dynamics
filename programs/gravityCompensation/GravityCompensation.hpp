@@ -18,7 +18,8 @@
 #define DEFAULT_REMOTE_SENSOR "/jr3/ch3:o"
 #define DEFAULT_REMOTE_CARTESIAN "/CartesianServer"
 
-#define DEFAULT_GAIN 0.0
+#define DEFAULT_LINEAR_GAIN 0.0
+#define DEFAULT_ANGULAR_GAIN 0.0
 
 namespace roboticslab
 {
@@ -46,7 +47,8 @@ private:
     yarp::dev::PolyDriver cartesianDevice;
     ICartesianControl * iCartesianControl;
 
-    double gain;
+    double linearGain;
+    double angularGain;
 };
 
 } // namespace roboticslab
