@@ -29,6 +29,8 @@
 #include <ColorDebug.h>
 
 #include "ChainIkSolverPos_ST.hpp"
+#include "ChainIkSolverPos_ID.hpp"
+
 #include "KdlSolverImpl.hpp"
 
 // ------------------- KdlSolver Related ------------------------------------
@@ -352,7 +354,7 @@ bool roboticslab::KdlSolver::open(yarp::os::Searchable& config)
     idSolver = new KDL::ChainIdSolver_RNE(*chainClone, gravity);
 
     //-- IK solver algorithm.
-    std::string ik = fullConfig.check("ik", yarp::os::Value(DEFAULT_IK_SOLVER), "IK solver algorithm (lma, nrjl, st)").asString();
+    std::string ik = fullConfig.check("ik", yarp::os::Value(DEFAULT_IK_SOLVER), "IK solver algorithm (lma, nrjl, st, id)").asString();
 
     if (ik == "lma")
     {
@@ -417,6 +419,20 @@ bool roboticslab::KdlSolver::open(yarp::os::Searchable& config)
             CD_ERROR("Unable to solve IK.\n");
             return false;
         }
+    }
+    else if (ik == "id")
+    {
+        KDL::JntArray qMax(chain.getNrOfJoints());
+        KDL::JntArray qMin(chain.getNrOfJoints());
+
+        //-- Joint limits.
+        if (!retrieveJointLimits(fullConfig, qMin, qMax))
+        {
+            CD_ERROR("Unable to retrieve joint limits.\n");
+            return false;
+        }
+
+        ikSolverPos = new ChainIkSolverPos_ID(chain, qMin, qMax, *fkSolverPos);
     }
     else
     {
