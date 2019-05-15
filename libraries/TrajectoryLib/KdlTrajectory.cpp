@@ -22,11 +22,18 @@ roboticslab::KdlTrajectory::KdlTrajectory()
       configuredPath(false),
       configuredVelocityProfile(false),
       velocityDrivenPath(false),
+      created(false),
       currentTrajectory(0),
       path(0),
-      orient(0),
       velocityProfile(0)
 {}
+
+// -----------------------------------------------------------------------------
+
+roboticslab::KdlTrajectory::~KdlTrajectory()
+{
+    destroy();
+}
 
 // -----------------------------------------------------------------------------
 
@@ -136,6 +143,12 @@ bool roboticslab::KdlTrajectory::addWaypoint(const std::vector<double>& waypoint
 
 bool roboticslab::KdlTrajectory::configurePath(int pathType)
 {
+    if ( configuredPath )
+    {
+        CD_WARNING("Already configured.\n");
+        return false;
+    }
+
     switch( pathType )
     {
     case ICartesianTrajectory::LINE:
@@ -146,7 +159,7 @@ bool roboticslab::KdlTrajectory::configurePath(int pathType)
             return false;
         }
 
-        orient = new KDL::RotationalInterpolation_SingleAxis();
+        KDL::RotationalInterpolation * orient = new KDL::RotationalInterpolation_SingleAxis();
         double eqradius = 1.0; //0.000001;
 
         if ( frames.size() == 1 )
@@ -176,6 +189,12 @@ bool roboticslab::KdlTrajectory::configurePath(int pathType)
 
 bool roboticslab::KdlTrajectory::configureVelocityProfile(int velocityProfileType)
 {
+    if ( configuredVelocityProfile )
+    {
+        CD_WARNING("Already configured.\n");
+        return false;
+    }
+
     switch( velocityProfileType )
     {
     case ICartesianTrajectory::TRAPEZOIDAL:
@@ -202,6 +221,12 @@ bool roboticslab::KdlTrajectory::configureVelocityProfile(int velocityProfileTyp
 
 bool roboticslab::KdlTrajectory::create()
 {
+    if( created )
+    {
+        CD_WARNING("Already created.\n");
+        return false;
+    }
+
     if( ! configuredPath )
     {
         CD_ERROR("Path not configured!\n");
@@ -254,6 +279,8 @@ bool roboticslab::KdlTrajectory::create()
         }
     }
 
+    created = true;
+
     return true;
 }
 
@@ -261,15 +288,36 @@ bool roboticslab::KdlTrajectory::create()
 
 bool roboticslab::KdlTrajectory::destroy()
 {
-    delete currentTrajectory; // deletes aggregated path and profile instances, too
-    currentTrajectory = 0;
-    path = 0;
-    orient = 0;
-    velocityProfile = 0;
+    if ( currentTrajectory )
+    {
+        // deletes aggregated path and profile instances, too
+        delete currentTrajectory;
+        currentTrajectory = 0;
+        path = 0;
+        velocityProfile = 0;
+    }
+    else
+    {
+        if ( path )
+        {
+            delete path;
+            path = 0;
+        }
+
+        if ( velocityProfile )
+        {
+            delete velocityProfile;
+            velocityProfile = 0;
+        }
+    }
 
     duration = DURATION_NOT_SET;
+    maxVelocity = DEFAULT_CARTESIAN_MAX_VEL;
+    maxAcceleration = DEFAULT_CARTESIAN_MAX_ACC;
+
     configuredPath = configuredVelocityProfile = false;
     velocityDrivenPath = false;
+    created = false;
 
     frames.clear();
     twists.clear();

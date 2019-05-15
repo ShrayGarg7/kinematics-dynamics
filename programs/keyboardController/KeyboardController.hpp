@@ -1,3 +1,5 @@
+// -*- mode:C++; tab-width:4; c-basic-offset:4; indent-tabs-mode:nil -*-
+
 #ifndef __KEYBOARD_CONTROLLER_HPP__
 #define __KEYBOARD_CONTROLLER_HPP__
 
@@ -10,10 +12,18 @@
 
 #include <yarp/dev/PolyDriver.h>
 #include <yarp/dev/IEncoders.h>
-#include <yarp/dev/IControlMode2.h>
-#include <yarp/dev/IControlLimits2.h>
+#include <yarp/dev/IControlMode.h>
 #include <yarp/dev/IVelocityControl.h>
 
+#include <yarp/conf/version.h>
+
+#if YARP_VERSION_MAJOR == 3 && YARP_VERSION_MINOR >= 1
+# include <yarp/dev/IControlLimits.h>
+#else
+# include <yarp/dev/IControlLimits2.h>
+#endif // YARP_VERSION_MAJOR == 3 && YARP_VERSION_MINOR == 0
+
+#include "LinearTrajectoryThread.hpp"
 #include "ICartesianControl.h"
 #include "KinematicRepresentation.hpp"
 
@@ -25,6 +35,8 @@
 
 #define DEFAULT_ANGLE_REPR "axisAngle" // keep in sync with KinRepresentation::parseEnumerator's
                                        // fallback in ::open()
+
+#define DEFAULT_THREAD_MS 50
 
 namespace roboticslab
 {
@@ -79,12 +91,15 @@ private:
     KinRepresentation::orientation_system orient;
     control_modes controlMode;
 
+    bool usingThread;
+    LinearTrajectoryThread * linTrajThread;
+
     yarp::dev::PolyDriver controlboardDevice;
     yarp::dev::PolyDriver cartesianControlDevice;
 
     yarp::dev::IEncoders * iEncoders;
-    yarp::dev::IControlMode2 * iControlMode;
-    yarp::dev::IControlLimits2 * iControlLimits;
+    yarp::dev::IControlMode * iControlMode;
+    yarp::dev::IControlLimits * iControlLimits;
     yarp::dev::IVelocityControl * iVelocityControl;
 
     roboticslab::ICartesianControl * iCartesianControl;

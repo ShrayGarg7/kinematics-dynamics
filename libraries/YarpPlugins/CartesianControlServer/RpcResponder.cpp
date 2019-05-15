@@ -4,6 +4,7 @@
 
 #include <sstream>
 
+#include <yarp/os/Bottle.h>
 #include <yarp/os/Vocab.h>
 
 #include <ColorDebug.h>
@@ -19,7 +20,7 @@ namespace
 
     inline void addValue(yarp::os::Bottle& b, int vocab, double value)
     {
-        if (vocab == VOCAB_CC_CONFIG_FRAME)
+        if (vocab == VOCAB_CC_CONFIG_FRAME || vocab == VOCAB_CC_CONFIG_STREAMING)
         {
             b.addVocab(value);
         }
@@ -31,7 +32,7 @@ namespace
 
     inline double asValue(int vocab, const yarp::os::Value& v)
     {
-        if (vocab == VOCAB_CC_CONFIG_FRAME)
+        if (vocab == VOCAB_CC_CONFIG_FRAME || vocab == VOCAB_CC_CONFIG_STREAMING)
         {
             return v.asVocab();
         }
@@ -89,7 +90,7 @@ void roboticslab::RpcResponder::makeUsage()
     std::stringstream ss;
 
     ss << "[" << yarp::os::Vocab::decode(VOCAB_CC_STAT) << "]";
-    addUsage(ss.str().c_str(), "get current position in cartesian space");
+    addUsage(ss.str().c_str(), "get controller state, current position in cartesian space and encoder acquisition timestamp");
     ss.str("");
 
     ss << "[" << yarp::os::Vocab::decode(VOCAB_CC_INV) << "] coord1 coord2 ...";
@@ -160,8 +161,8 @@ void roboticslab::RpcResponder::makeUsage()
     addUsage(ss.str().c_str(), "(config param) trajectory duration");
     ss.str("");
 
-    ss << "... [" << yarp::os::Vocab::decode(VOCAB_CC_CONFIG_CMC_RATE) << "] value";
-    addUsage(ss.str().c_str(), "(config param) CMC rate [ms]");
+    ss << "... [" << yarp::os::Vocab::decode(VOCAB_CC_CONFIG_CMC_PERIOD) << "] value";
+    addUsage(ss.str().c_str(), "(config param) CMC period [ms]");
     ss.str("");
 
     ss << "... [" << yarp::os::Vocab::decode(VOCAB_CC_CONFIG_WAIT_PERIOD) << "] value";
@@ -175,6 +176,17 @@ void roboticslab::RpcResponder::makeUsage()
     ss << "... [" << yarp::os::Vocab::decode(VOCAB_CC_CONFIG_FRAME) << "] [" << yarp::os::Vocab::decode(ICartesianSolver::TCP_FRAME) << "]";
     addUsage(ss.str().c_str(), "(config param) reference frame (TCP)");
     ss.str("");
+
+    std::stringstream ss_cmd;
+    ss_cmd << "(config param) preset streaming command, available:";
+    ss_cmd << " [" << yarp::os::Vocab::decode(VOCAB_CC_TWIST) << "]";
+    ss_cmd << " [" << yarp::os::Vocab::decode(VOCAB_CC_POSE) << "]";
+    ss_cmd << " [" << yarp::os::Vocab::decode(VOCAB_CC_MOVI) << "]";
+
+    ss << "... [" << yarp::os::Vocab::decode(VOCAB_CC_CONFIG_STREAMING) << "] vocab";
+    addUsage(ss.str().c_str(), ss_cmd.str().c_str());
+
+    ss.str("");
 }
 
 // -----------------------------------------------------------------------------
@@ -183,8 +195,9 @@ bool roboticslab::RpcResponder::handleStatMsg(const yarp::os::Bottle& in, yarp::
 {
     std::vector<double> x;
     int state;
+    double timestamp;
 
-    if (iCartesianControl->stat(state, x))
+    if (iCartesianControl->stat(x, &state, &timestamp))
     {
         if (!transformOutgoingData(x))
         {
@@ -198,6 +211,8 @@ bool roboticslab::RpcResponder::handleStatMsg(const yarp::os::Bottle& in, yarp::
         {
             out.addDouble(x[i]);
         }
+
+        out.addDouble(timestamp);
 
         return true;
     }
