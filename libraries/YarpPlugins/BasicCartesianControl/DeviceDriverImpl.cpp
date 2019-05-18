@@ -11,19 +11,19 @@ bool roboticslab::BasicCartesianControl::open(yarp::os::Searchable& config)
     CD_DEBUG("BasicCartesianControl config: %s.\n", config.toString().c_str());
 
     gain = config.check("controllerGain", yarp::os::Value(DEFAULT_GAIN),
-            "controller gain").asDouble();
+            "controller gain").asFloat64();
 
     maxJointVelocity = config.check("maxJointVelocity", yarp::os::Value(DEFAULT_QDOT_LIMIT),
-            "maximum joint velocity (meters/second or degrees/second)").asDouble();
+            "maximum joint velocity (meters/second or degrees/second)").asFloat64();
 
     duration = config.check("trajectoryDuration", yarp::os::Value(DEFAULT_DURATION),
-            "trajectory duration (seconds)").asDouble();
+            "trajectory duration (seconds)").asFloat64();
 
     cmcPeriodMs = config.check("cmcPeriodMs", yarp::os::Value(DEFAULT_CMC_PERIOD_MS),
-            "CMC rate (milliseconds)").asInt();
+            "CMC rate (milliseconds)").asInt32();
 
     waitPeriodMs = config.check("waitPeriodMs", yarp::os::Value(DEFAULT_WAIT_PERIOD_MS),
-            "wait command period (milliseconds)").asInt();
+            "wait command period (milliseconds)").asInt32();
 
     std::string referenceFrameStr = config.check("referenceFrame", yarp::os::Value(DEFAULT_REFERENCE_FRAME),
              "reference frame (base|tcp)").asString();
@@ -122,8 +122,8 @@ bool roboticslab::BasicCartesianControl::open(yarp::os::Searchable& config)
         qMin[joint] = min;
         qMax[joint] = max;
 
-        bMin.addDouble(min);
-        bMax.addDouble(max);
+        bMin.addFloat64(min);
+        bMax.addFloat64(max);
 
         CD_INFO("Joint %d limits: [%f,%f]\n", joint, min, max);
     }
