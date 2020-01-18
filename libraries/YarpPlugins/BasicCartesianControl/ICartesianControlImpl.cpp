@@ -474,7 +474,12 @@ void roboticslab::BasicCartesianControl::twist(const std::vector<double> &xdot)
         return;
     }
 
-    if (!iCartesianSolver->poseDiff(prevX, currentX, commandXdot))
+    for (int i = 0; i < 6; i++)
+    {
+        expectedX[i] += xdot[i] * (cmcPeriodMs / 1000.0);
+    }
+
+    if (!iCartesianSolver->poseDiff(expectedX, currentX, commandXdot))
     {
         CD_ERROR("poseDiff failed.\n");
         return;
@@ -504,11 +509,6 @@ void roboticslab::BasicCartesianControl::twist(const std::vector<double> &xdot)
     {
         CD_ERROR("velocityMove failed.\n");
         return;
-    }
-
-    for (int i = 0; i < 6; i++)
-    {
-        prevX[i] = currentX[i] + xdot[i] * (cmcPeriodMs / 1000.0);
     }
 }
 

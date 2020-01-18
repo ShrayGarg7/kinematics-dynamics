@@ -270,8 +270,8 @@ protected:
     /** FORC desired cartesian force */
     std::vector<double> td;
 
-    /** TWIST previous cartesian pose */
-    std::vector<double> prevX;
+    /** TWIST expected cartesian pose */
+    std::vector<double> expectedX;
 
     bool cmcSuccess;
 
