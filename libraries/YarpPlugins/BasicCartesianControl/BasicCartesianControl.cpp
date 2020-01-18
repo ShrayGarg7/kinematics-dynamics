@@ -170,6 +170,8 @@ bool BasicCartesianControl::presetStreamingCommand(int command)
     switch (command)
     {
     case VOCAB_CC_TWIST:
+        stat(prevX);
+        // no break
     case VOCAB_CC_POSE:
         return setControlModes(VOCAB_CM_VELOCITY);
     case VOCAB_CC_MOVI:

@@ -264,11 +264,14 @@ protected:
     /** MOVL keep track of movement start time to know at what time of trajectory movement we are */
     double movementStartTime;
 
-    /** MOVL store Cartesian trajectory */
+    /** MOVL store cartesian trajectory */
     ICartesianTrajectory* iCartesianTrajectory;
 
-    /** FORC desired Cartesian force */
+    /** FORC desired cartesian force */
     std::vector<double> td;
+
+    /** TWIST previous cartesian pose */
+    std::vector<double> prevX;
 
     bool cmcSuccess;
 

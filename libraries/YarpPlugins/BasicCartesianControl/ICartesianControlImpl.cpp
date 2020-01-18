@@ -460,7 +460,7 @@ void roboticslab::BasicCartesianControl::twist(const std::vector<double> &xdot)
         return;
     }
 
-    std::vector<double> currentQ(numRobotJoints), qdot;
+    std::vector<double> currentQ(numRobotJoints), currentX, commandXdot, qdot;
 
     if (!iEncoders->getEncoders(currentQ.data()))
     {
@@ -468,7 +468,25 @@ void roboticslab::BasicCartesianControl::twist(const std::vector<double> &xdot)
         return;
     }
 
-    if (!iCartesianSolver->diffInvKin(currentQ, xdot, qdot, referenceFrame))
+    if (!iCartesianSolver->fwdKin(currentQ, currentX))
+    {
+        CD_ERROR("fwdKin failed.\n");
+        return;
+    }
+
+    if (!iCartesianSolver->poseDiff(prevX, currentX, commandXdot))
+    {
+        CD_ERROR("poseDiff failed.\n");
+        return;
+    }
+
+    for (int i = 0; i < 6; i++)
+    {
+        commandXdot[i] *= gain * (1000.0 / cmcPeriodMs);
+        commandXdot[i] += xdot[i];
+    }
+
+    if (!iCartesianSolver->diffInvKin(currentQ, commandXdot, qdot, referenceFrame))
     {
         CD_ERROR("diffInvKin failed.\n");
         return;
@@ -486,6 +504,11 @@ void roboticslab::BasicCartesianControl::twist(const std::vector<double> &xdot)
     {
         CD_ERROR("velocityMove failed.\n");
         return;
+    }
+
+    for (int i = 0; i < 6; i++)
+    {
+        prevX[i] = currentX[i] + xdot[i] * (cmcPeriodMs / 1000.0);
     }
 }
 
